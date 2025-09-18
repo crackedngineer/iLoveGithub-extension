@@ -3,10 +3,10 @@ name: Publish Chrome Extension
 on:
   push:
     tags:
-      - "v*"   # Runs only when a tag starting with 'v' is pushed (e.g., v1.0.0)
+      - "v*.*.*" # or whatever tag pattern you use, e.g. v1.2.3
 
 jobs:
-  publish:
+  build_and_publish:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,24 +16,26 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build extension
-        run: npm run build # Adjust if you have a build step, else remove
+        run: npm run build # adjust this to your build command
 
-      - name: Pack extension
+      - name: Package extension
         run: |
           mkdir -p dist
-          zip -r dist/extension.zip . -x '*.git*' 'node_modules/*' 'dist/*'
+          # Adjust if your build outputs somewhere else
+          zip -r dist/extension.zip build/**/*
 
-      - name: Publish to Chrome Web Store
-        uses: mobilefirstllc/cws-publish@v2
+      - name: Upload & publish to Chrome Web Store
+        uses: mnao305/chrome-extension-upload@v5.0.0
         with:
-          extension_id: ${{ secrets.CHROME_EXTENSION_ID }}
-          client_id: ${{ secrets.CHROME_CLIENT_ID }}
-          client_secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          refresh_token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          zip_file: dist/extension.zip
+          file-path: dist/extension.zip
+          extension-id: ${{ secrets.EXTENSION_ID }}
+          client-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          refresh-token: ${{ secrets.REFRESH_TOKEN }}
+          publish: true # set to true if you want to publish immediately after upload
