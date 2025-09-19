@@ -1,10 +1,11 @@
 name: Publish Chrome Extension
 
 on:
-  workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
-  build_and_publish:
+  publish:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,7 +26,6 @@ jobs:
       - name: Package extension
         run: |
           mkdir -p dist
-          # Adjust if your build outputs somewhere else
           zip -r dist/extension.zip . -x "node_modules/*" "src/*" "*.ts" "webpack.config.js" ".git/*"
 
       - name: Upload & publish to Chrome Web Store
