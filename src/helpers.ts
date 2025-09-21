@@ -34,7 +34,7 @@ export function getRepoInfo(): RepoInfo | null {
     return {
       owner: pathParts[0],
       repo: pathParts[1],
-      default_branch: "main",
+      branch: "main",
     };
   }
   return null;

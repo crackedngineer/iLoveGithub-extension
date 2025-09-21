@@ -1,4 +1,4 @@
-import {GitHubTool, RepoInfo, Tool, CreateElementOptions, RepoAnalytics} from "./types";
+import { RepoInfo, Tool, CreateElementOptions, RepoAnalytics} from "./types";
 import {BASE_URL, LOGO_URL, MESSAGE_TYPES} from "./constants";
 import {debugLog, formatNumber} from "./helpers";
 
@@ -17,7 +17,7 @@ export async function fetchTools(owner: string, repo: string, default_branch: st
     description: item.description,
     icon: item.icon,
     url: item.url,
-  })) as GitHubTool[];
+  })) as Tool[];
 }
 
 /**

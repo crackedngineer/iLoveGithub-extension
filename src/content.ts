@@ -1,311 +1,282 @@
-import {Tool, RepoInfo, UIState, ExtensionElements, RepoAnalytics} from "./types";
-import {debugLog, isRepoPage, getRepoInfo, filterTools} from "./helpers";
-import {
-  updateToolsListHTML,
-  loadTools,
-  createElement,
-  addEventListenerWithCleanup,
-  generatePopupHTML,
-} from "./utils";
-import {CSS_CLASSES, UI_CONSTANTS, DOM_IDS, LOGO_URL} from "./constants";
+import { getRepoInfo } from "./helpers";
+import { RepoInfo, Tool } from "./types";
+import { loadTools } from "./utils";
 
-class ContentHandler {
-  private elements: ExtensionElements = {
-    floatingButton: null,
-    popup: null,
-    searchInput: null,
-    toolsList: null,
-  };
-
-  private state: UIState = {
-    isPopupOpen: false,
-    isLoading: false,
-    error: null,
-    searchQuery: "",
-    filteredTools: [],
-  };
-
-  private cleanupFunctions: (() => void)[] = [];
+class WebIdeExtension {
+  private hasPackageJson = false;
   private tools: Tool[] = [];
-  private analytics: RepoAnalytics | null = null;
   private repoInfo: RepoInfo | null = null;
 
   constructor() {
-    this.initialize();
+    this.init();
   }
 
-  private async initialize() {
+  async init(): Promise<void> {
     try {
-      debugLog("Initializing ContentHandler");
-
-      if (!isRepoPage()) {
-        debugLog("Not a repository page, skipping initialization");
-        return;
-      }
-
+      this.hasPackageJson = this.checkPackageJson();
       this.repoInfo = getRepoInfo();
-      if (!this.repoInfo) {
-        this.setError("Could not detect repository information");
-        return;
-      }
 
-      this.setLoading(true);
+      this.tools = await loadTools(
+        this.repoInfo,
+      );
 
-      await this.loadToolsData();
-      this.createFloatingButton();
-      this.setLoading(false);
+      this.addGitHubSelectMenu();
+      this.setupNavigationHandler();
     } catch (error) {
-      debugLog("Initialization error:", error);
-      this.setError("Failed to initialize extension");
-      this.setLoading(false);
+      console.error("Failed to initialize Web IDE extension:", error);
     }
   }
 
-  /**
-   * Load tools from extension storage
-   */
-  private async loadToolsData(): Promise<void> {
-    this.tools = await loadTools(this.repoInfo);
-    this.state.filteredTools = [...this.tools];
+  private checkPackageJson(): boolean {
+    // Simple check for package.json - can be enhanced
+    return document.querySelector('[title="package.json"]') !== null;
   }
 
-  /**
-   * State Management
-   */
-  private setError(error: string): void {
-    this.state.error = error;
-    debugLog("Error set:", error);
+  private filterItems(item: Tool): boolean {
+    // Only filter StackBlitz if no package.json
+    if (item.name === "stackblitz" && !this.hasPackageJson) {
+      return false;
+    }
+    return true;
   }
 
-  private setLoading(isLoading: boolean): void {
-    this.state.isLoading = isLoading;
-    debugLog("Loading state:", isLoading);
-  }
+  private addGitHubSelectMenu(): void {
+    const selectors = [
+      ".OverviewContent-module__Box_6--wV7Tw",
+      ".CodeViewHeader-module__Box_7--FZfkg .d-flex.gap-2",
+      ".prc-Stack-Stack-WJVsK .d-flex.gap-2",
+    ];
 
-  private createFloatingButton(): void {
-    const existing = document.getElementById("tools-btn");
-    if (existing) existing.remove();
-
-    const button = createElement("button", {
-      id: "tools-btn",
-      className: "tools-floating-btn",
-      innerHTML: `<img class='tools-btn-icon' src="${LOGO_URL}" alt='iLoveGitHub Tools'/>`,
-      title: "Open in iLoveGitHub",
-      "aria-label": "Open in iLoveGitHub",
-    });
-    document.body.appendChild(button);
-    this.elements.floatingButton = button;
-
-    // Add event listener
-    const cleanup = addEventListenerWithCleanup(
-      button,
-      "click",
-      this.handleFloatingButtonClick.bind(this),
-      {passive: true},
-    );
-    this.cleanupFunctions.push(cleanup);
-
-    debugLog("Floating button created");
-  }
-
-  /**
-   * Create and show popup
-   */
-  private createPopup(): void {
-    if (!this.repoInfo) {
-      this.setError("Could not detect repository");
+    const menuElement = document.querySelector(selectors.join(", "));
+    if (!menuElement || menuElement.querySelector("#open-in-web-ide")) {
       return;
     }
 
-    const popup = createElement("div", {
-      id: DOM_IDS.POPUP,
-      className: `${CSS_CLASSES.POPUP} ${CSS_CLASSES.POPUP_HIDDEN}`,
+    const filteredItems = this.tools.filter((item) =>
+      this.filterItems(item)
+    );
+    if (filteredItems.length === 0) return;
+
+    const detailsElement = this.createDropdownElement(filteredItems);
+    menuElement.appendChild(detailsElement);
+  }
+
+  private createDropdownElement(items: Tool[]): HTMLDetailsElement {
+    const detailsElement = document.createElement("details");
+    detailsElement.id = "open-in-web-ide";
+    detailsElement.className =
+      "details-overlay details-reset position-relative d-flex web-ide-dropdown";
+
+    detailsElement.innerHTML = `
+      <summary role="button" type="button" class="btn text-center">
+        <span class="d-none d-xl-flex flex-items-center">
+          iLoveGihub Tools
+          <span class="dropdown-caret ml-2"></span>
+        </span>
+        <span class="d-inline-block d-xl-none">
+          IDE
+          <span class="dropdown-caret d-none d-sm-inline-block d-md-none d-lg-inline-block"></span>
+        </span>
+      </summary>
+      <div class="web-ide-dropdown-panel">
+        <div class="web-ide-search-container">
+          <input 
+            type="text" 
+            class="web-ide-search-input" 
+            placeholder="Search IDEs..."
+            autocomplete="off"
+          />
+          <svg class="web-ide-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </div>
+        <ul class="web-ide-items-list">
+          ${this.renderItems(items)}
+        </ul>
+      </div>
+    `;
+
+    this.setupDropdownEventListeners(detailsElement, items);
+    return detailsElement;
+  }
+
+  private renderItems(items: Tool[]): string {
+    return items
+      .map(
+        (item, index) => `
+      <li class="web-ide-item data-index="${index}" data-name="${item.name}">
+        <a href="${item.url}" 
+           class="web-ide-item-link" 
+           target="_blank" 
+           rel="noopener noreferrer"
+           title="${item.name}">
+          <img src="${item.icon}" class="inverted-icon-clr tool-icon" alt="${item.name}" />
+          <span class="web-ide-item-title">${item.name}</span>
+        </a>
+      </li>
+    `
+      )
+      .join("");
+  }
+
+  private setupDropdownEventListeners(
+    detailsElement: HTMLDetailsElement,
+    items: Tool[]
+  ): void {
+    const searchInput = detailsElement.querySelector(
+      ".web-ide-search-input"
+    ) as HTMLInputElement;
+    const itemsList = detailsElement.querySelector(
+      ".web-ide-items-list"
+    ) as HTMLElement;
+    let filteredItems = [...items];
+    let highlightedIndex = -1;
+
+    // Auto-focus search when dropdown opens
+    detailsElement.addEventListener("toggle", () => {
+      if (detailsElement.open) {
+        setTimeout(() => searchInput?.focus(), 50);
+      } else {
+        this.resetSearch();
+      }
     });
 
-    popup.innerHTML = generatePopupHTML(
-      this.repoInfo,
-      this.analytics,
-      this.state.filteredTools,
-      this.tools,
-      this.state.searchQuery,
+    // Search functionality
+    searchInput?.addEventListener("input", (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
+      filteredItems = items.filter((item) =>
+        item.name.toLowerCase().includes(query)
+      );
+
+      this.updateItemsList(itemsList, filteredItems);
+      highlightedIndex = filteredItems.length > 0 ? 0 : -1;
+      this.updateHighlight(itemsList, highlightedIndex);
+    });
+
+    // Keyboard navigation
+    searchInput?.addEventListener("keydown", (e) => {
+      const visibleItems = itemsList.querySelectorAll(
+        '.web-ide-item:not([style*="display: none"])'
+      );
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          highlightedIndex = Math.min(
+            highlightedIndex + 1,
+            visibleItems.length - 1
+          );
+          this.updateHighlight(itemsList, highlightedIndex);
+          break;
+
+        case "ArrowUp":
+          e.preventDefault();
+          highlightedIndex = Math.max(highlightedIndex - 1, 0);
+          this.updateHighlight(itemsList, highlightedIndex);
+          break;
+
+        case "Enter":
+          e.preventDefault();
+          if (highlightedIndex >= 0 && visibleItems[highlightedIndex]) {
+            const link = visibleItems[highlightedIndex].querySelector(
+              "a"
+            ) as HTMLAnchorElement;
+            link?.click();
+            detailsElement.open = false;
+          }
+          break;
+
+        case "Escape":
+          detailsElement.open = false;
+          break;
+      }
+    });
+
+    // Click outside to close
+    document.addEventListener("click", (e) => {
+      if (!detailsElement.contains(e.target as Node)) {
+        detailsElement.open = false;
+      }
+    });
+
+    const resetSearch = () => {
+      searchInput.value = "";
+      filteredItems = [...items];
+      this.updateItemsList(itemsList, filteredItems);
+      highlightedIndex = 0;
+      this.updateHighlight(itemsList, highlightedIndex);
+    };
+
+    this.resetSearch = resetSearch;
+  }
+
+  private resetSearch(): void {
+    // Will be overridden in setupDropdownEventListeners
+  }
+
+  private updateItemsList(itemsList: HTMLElement, items: Tool[]): void {
+    const allItems = itemsList.querySelectorAll(".web-ide-item");
+
+    allItems.forEach((item, index) => {
+      const itemName = item.getAttribute("data-name");
+      const shouldShow = items.some(
+        (filteredItem) => filteredItem.name === itemName
+      );
+      (item as HTMLElement).style.display = shouldShow ? "block" : "none";
+    });
+  }
+
+  private updateHighlight(itemsList: HTMLElement, index: number): void {
+    const visibleItems = itemsList.querySelectorAll(
+      '.web-ide-item:not([style*="display: none"])'
     );
 
-    document.body.appendChild(popup);
-    this.elements.popup = popup;
-
-    // Show with animation
-    requestAnimationFrame(() => {
-      popup.classList.remove(CSS_CLASSES.POPUP_HIDDEN);
-      popup.classList.add(CSS_CLASSES.POPUP_VISIBLE);
+    visibleItems.forEach((item, i) => {
+      item.classList.toggle("highlighted", i === index);
     });
 
-    this.bindPopupEvents();
-    debugLog("Popup created");
+    // Scroll highlighted item into view
+    if (index >= 0 && visibleItems[index]) {
+      (visibleItems[index] as HTMLElement).scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
   }
 
-  /**
-   * Bind event listeners to popup elements
-   */
-  private bindPopupEvents(): void {
-    if (!this.elements.popup) return;
-
-    // Tool search
-    this.elements.searchInput = this.elements.popup.querySelector(`#${DOM_IDS.TOOL_SEARCH}`);
-    if (this.elements.searchInput) {
-      const cleanup = addEventListenerWithCleanup(
-        this.elements.searchInput,
-        "input",
-        this.handleToolSearch.bind(this),
-      );
-      this.cleanupFunctions.push(cleanup);
-    }
-
-    // Tool items
-    const toolItems = this.elements.popup.querySelectorAll(`.${CSS_CLASSES.TOOL_ITEM}`);
-    toolItems.forEach((item) => {
-      const cleanup = addEventListenerWithCleanup(
-        item as HTMLElement,
-        "click",
-        this.handleToolClick.bind(this),
-      );
-      this.cleanupFunctions.push(cleanup);
+  private setupNavigationHandler(): void {
+    // GitHub soft navigation
+    document.addEventListener("soft-nav:end", () => {
+      this.handleNavigation();
     });
 
-    // Outside click
-    const outsideClickCleanup = addEventListenerWithCleanup(
-      document,
-      "click",
-      this.handleOutsideClick.bind(this),
-    );
-    this.cleanupFunctions.push(outsideClickCleanup);
+    // Fallback for URL changes
+    let currentUrl = location.href;
+    const checkUrl = () => {
+      if (location.href !== currentUrl) {
+        currentUrl = location.href;
+        this.handleNavigation();
+      }
+    };
+
+    setInterval(checkUrl, 1000);
   }
 
-  private handleOutsideClick(e: Event): void {
-    const target = e.target as HTMLElement;
+  private handleNavigation(): void {
+    // Remove existing dropdown
+    document.getElementById("open-in-web-ide")?.remove();
 
-    if (
-      this.state.isPopupOpen &&
-      this.elements.popup &&
-      this.elements.floatingButton &&
-      !this.elements.popup.contains(target) &&
-      target !== this.elements.floatingButton
-    ) {
-      this.hidePopup();
-    }
-  }
+    this.hasPackageJson = this.checkPackageJson();
 
-  private handleToolSearch(e: Event): void {
-    const target = e.target as HTMLInputElement;
-    const query = target.value.toLowerCase().trim();
-    this.state.searchQuery = query;
-    this.updateFilteredTools(query);
-  }
-
-  private handleToolClick(e: Event): void {
-    const target = e.currentTarget as HTMLElement;
-    const toolIndex = parseInt(target.dataset["toolIndex"] || "0", 10);
-
-    if (toolIndex >= 0 && toolIndex < this.tools.length && this.repoInfo) {
-      const tool = this.tools[toolIndex];
-      window.open(tool.url, "_blank");
-      this.hidePopup();
-    }
-  }
-
-  /**
-   * Update filtered tools and refresh UI
-   */
-  private updateFilteredTools(query: string): void {
-    this.state.filteredTools = filterTools(this.tools, query);
-    this.updateToolsList();
-  }
-
-  /**
-   * Update tools list in DOM
-   */
-  private updateToolsList(): void {
-    if (!this.elements.popup) return;
-
-    const toolsList = this.elements.popup.querySelector(`.${CSS_CLASSES.TOOLS_LIST}`);
-    if (!toolsList) return;
-
-    // Update HTML
-    toolsList.innerHTML = updateToolsListHTML(this.state.filteredTools, this.tools);
-
-    // Re-bind tool click events
-    const newToolItems = toolsList.querySelectorAll(`.${CSS_CLASSES.TOOL_ITEM}`);
-    newToolItems.forEach((item) => {
-      const cleanup = addEventListenerWithCleanup(
-        item as HTMLElement,
-        "click",
-        this.handleToolClick.bind(this),
-      );
-      this.cleanupFunctions.push(cleanup);
-    });
-  }
-
-  /**
-   * Event Handlers
-   */
-  private handleFloatingButtonClick(e: Event): void {
-    e.stopPropagation();
-    this.togglePopup();
-  }
-
-  /**
-   * UI State Management
-   */
-  private togglePopup(): void {
-    if (this.state.isPopupOpen) {
-      this.hidePopup();
-    } else {
-      this.showPopup();
-    }
-  }
-
-  private showPopup(): void {
-    if (!this.state.isPopupOpen) {
-      this.createPopup();
-      this.state.isPopupOpen = true;
-      debugLog("Popup shown");
-    }
-  }
-
-  private hidePopup(): void {
-    if (this.state.isPopupOpen && this.elements.popup) {
-      this.elements.popup.classList.remove(CSS_CLASSES.POPUP_VISIBLE);
-      this.elements.popup.classList.add(CSS_CLASSES.POPUP_HIDDEN);
-
-      setTimeout(() => {
-        if (this.elements.popup) {
-          this.elements.popup.remove();
-          this.elements.popup = null;
-        }
-      }, UI_CONSTANTS.POPUP_ANIMATION_DELAY);
-
-      this.state.isPopupOpen = false;
-      debugLog("Popup hidden");
-    }
+    // Small delay to ensure DOM is ready
+    setTimeout(() => this.addGitHubSelectMenu(), 100);
   }
 }
 
-// Initialize when DOM is loaded
+// Initialize extension
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    new ContentHandler();
-  });
+  document.addEventListener("DOMContentLoaded", () => new WebIdeExtension());
 } else {
-  new ContentHandler();
+  new WebIdeExtension();
 }
-
-// Handle page navigation (for GitHub SPA)
-let lastUrl = location.href;
-new MutationObserver(() => {
-  const url = location.href;
-  if (url !== lastUrl) {
-    lastUrl = url;
-    setTimeout(() => {
-      new ContentHandler();
-    }, 1000);
-  }
-}).observe(document, {subtree: true, childList: true});

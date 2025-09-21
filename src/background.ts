@@ -1,9 +1,9 @@
-import {Tool} from "./types";
-import {fetchTools} from "./utils";
+import { Tool, ToolsApiResponse } from "./types";
+import { fetchTools } from "./utils";
 
 interface AnalyticsData {
   toolName: string;
-  repo: {owner: string; repo: string};
+  repo: { owner: string; repo: string };
   timestamp: number;
 }
 
@@ -55,40 +55,49 @@ class BackgroundService {
   private handleMessage(
     message: any,
     sender: chrome.runtime.MessageSender,
-    sendResponse: (response?: any) => void,
+    sendResponse: (response?: any) => void
   ): void {
     switch (message.type) {
       case "TRACK_TOOL_USAGE":
         this.trackToolUsage(message.data);
-        sendResponse({success: true});
+        sendResponse({ success: true });
         break;
 
       case "GET_ANALYTICS":
-        sendResponse({analytics: this.analytics});
+        sendResponse({ analytics: this.analytics });
         break;
 
       case "FETCH_TOOLS":
         this.handleFetchTools({
           owner: message.data.owner,
           repo: message.data.repo,
-          default_branch: message.data.default_branch || "master",
+          branch: message.data.branch,
         })
-          .then((tools: Tool[]) => sendResponse({success: true, data: tools}))
-          .catch((error: Error) => sendResponse({success: false, error: error.message}));
+          .then((tools: ToolsApiResponse) =>
+            sendResponse({ success: true, data: tools })
+          )
+          .catch((error: Error) =>
+            sendResponse({ success: false, error: error.message })
+          );
         break;
 
       case "GET_REPO_INFO":
         this.getRepositoryInfo(message.data.owner, message.data.repo)
-          .then((info) => sendResponse({success: true, data: info}))
-          .catch((error) => sendResponse({success: false, error: error.message}));
+          .then((info) => sendResponse({ success: true, data: info }))
+          .catch((error) =>
+            sendResponse({ success: false, error: error.message })
+          );
         break;
 
       default:
-        sendResponse({success: false, error: "Unknown message type"});
+        sendResponse({ success: false, error: "Unknown message type" });
     }
   }
 
-  private trackToolUsage(data: {toolName: string; repo: {owner: string; repo: string}}): void {
+  private trackToolUsage(data: {
+    toolName: string;
+    repo: { owner: string; repo: string };
+  }): void {
     const analyticsEntry: AnalyticsData = {
       toolName: data.toolName,
       repo: data.repo,
@@ -127,9 +136,9 @@ class BackgroundService {
   private async handleFetchTools(data: {
     owner: string;
     repo: string;
-    default_branch: string;
+    branch: string;
   }): Promise<any> {
-    return await fetchTools(data.owner, data.repo, data.default_branch || "master");
+    return await fetchTools(data.owner, data.repo, data.branch);
   }
 
   // private handleActionClick(tab: chrome.tabs.Tab): void {
@@ -156,7 +165,7 @@ class BackgroundService {
     // });
   }
 
-  public getPopularTools(): {name: string; count: number}[] {
+  public getPopularTools(): { name: string; count: number }[] {
     const toolCounts = new Map<string, number>();
 
     this.analytics.forEach((entry) => {
@@ -165,12 +174,16 @@ class BackgroundService {
     });
 
     return Array.from(toolCounts.entries())
-      .map(([name, count]) => ({name, count}))
+      .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
   }
 
-  public getRecentRepositories(): {owner: string; repo: string; lastUsed: number}[] {
+  public getRecentRepositories(): {
+    owner: string;
+    repo: string;
+    lastUsed: number;
+  }[] {
     const repoMap = new Map<string, number>();
 
     this.analytics.forEach((entry) => {
@@ -181,7 +194,7 @@ class BackgroundService {
     return Array.from(repoMap.entries())
       .map(([repo, lastUsed]) => {
         const [owner, repoName] = repo.split("/");
-        return {owner, repo: repoName, lastUsed};
+        return { owner, repo: repoName, lastUsed };
       })
       .sort((a, b) => b.lastUsed - a.lastUsed)
       .slice(0, 10);
