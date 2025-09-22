@@ -16,9 +16,7 @@ class WebIdeExtension {
       this.hasPackageJson = this.checkPackageJson();
       this.repoInfo = getRepoInfo();
 
-      this.tools = await loadTools(
-        this.repoInfo,
-      );
+      this.tools = await loadTools(this.repoInfo);
 
       this.addGitHubSelectMenu();
       this.setupNavigationHandler();
@@ -52,9 +50,7 @@ class WebIdeExtension {
       return;
     }
 
-    const filteredItems = this.tools.filter((item) =>
-      this.filterItems(item)
-    );
+    const filteredItems = this.tools.filter((item) => this.filterItems(item));
     if (filteredItems.length === 0) return;
 
     const detailsElement = this.createDropdownElement(filteredItems);
@@ -70,7 +66,7 @@ class WebIdeExtension {
     detailsElement.innerHTML = `
       <summary role="button" type="button" class="btn text-center">
         <span class="d-none d-xl-flex flex-items-center">
-          iLoveGihub Tools
+          Open Tools
           <span class="dropdown-caret ml-2"></span>
         </span>
         <span class="d-inline-block d-xl-none">
@@ -83,7 +79,7 @@ class WebIdeExtension {
           <input 
             type="text" 
             class="web-ide-search-input" 
-            placeholder="Search IDEs..."
+            placeholder="Search Tools..."
             autocomplete="off"
           />
           <svg class="web-ide-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -94,6 +90,9 @@ class WebIdeExtension {
         <ul class="web-ide-items-list">
           ${this.renderItems(items)}
         </ul>
+        <div class="tools-footer">
+          <span style="color: #000000;">Powered by <a href="https://ilovegithub.oderna.in" target="_blank" style="color: #0366d6; text-decoration: none;">iLoveGitHub</a> ❤️</span>
+        </div>
       </div>
     `;
 
@@ -112,7 +111,7 @@ class WebIdeExtension {
            rel="noopener noreferrer"
            title="${item.name}">
           <img src="${item.icon}" class="inverted-icon-clr tool-icon" alt="${item.name}" />
-          <span class="web-ide-item-title">${item.name}</span>
+          <span class="web-ide-item-title">Open in ${item.name}</span>
         </a>
       </li>
     `
