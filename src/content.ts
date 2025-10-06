@@ -38,7 +38,24 @@ class WebIdeExtension {
     return true;
   }
 
-  private addGitHubSelectMenu(): void {
+  // private async addStyles(): Promise<void> {
+  //   try {
+  //     // Read CSS file
+  //     const cssUrl = chrome.runtime.getURL("styles/content.css");
+  //     const response = await fetch(cssUrl);
+  //     const cssText = await response.text();
+
+  //     // Inject into page
+  //     const styleElement = document.createElement("style");
+  //     styleElement.id = "web-ide-styles";
+  //     styleElement.textContent = cssText;
+  //     document.head.appendChild(styleElement);
+  //   } catch (error) {
+  //     console.error("Failed to inject CSS:", error);
+  //   }
+  // }
+
+  private addGitHubSelectMenu(index: number = 1): void {
     const selectors = [
       ".OverviewContent-module__Box_6--wV7Tw",
       ".CodeViewHeader-module__Box_7--FZfkg .d-flex.gap-2",
@@ -53,8 +70,20 @@ class WebIdeExtension {
     const filteredItems = this.tools.filter((item) => this.filterItems(item));
     if (filteredItems.length === 0) return;
 
+    // this.addStyles();
+
     const detailsElement = this.createDropdownElement(filteredItems);
-    menuElement.appendChild(detailsElement);
+
+    // Insert at specific index
+    const children = Array.from(menuElement.children);
+
+    if (index < 0 || index >= children.length) {
+      // If index is out of bounds, append to end
+      menuElement.appendChild(detailsElement);
+    } else {
+      // Insert before the child at the specified index
+      menuElement.insertBefore(detailsElement, children[index]);
+    }
   }
 
   private createDropdownElement(items: Tool[]): HTMLDetailsElement {
@@ -70,7 +99,7 @@ class WebIdeExtension {
           <span class="dropdown-caret ml-2"></span>
         </span>
         <span class="d-inline-block d-xl-none">
-          IDE
+          Tools
           <span class="dropdown-caret d-none d-sm-inline-block d-md-none d-lg-inline-block"></span>
         </span>
       </summary>
@@ -91,7 +120,7 @@ class WebIdeExtension {
           ${this.renderItems(items)}
         </ul>
         <div class="tools-footer">
-          <span style="color: #000000;">Powered by <a href="https://ilovegithub.oderna.in" target="_blank" style="color: #0366d6; text-decoration: none;">iLoveGitHub</a> ❤️</span>
+          <span class="tools-footer-span">Powered by <a href="https://ilovegithub.oderna.in" target="_blank" style="color: #0366d6; text-decoration: none;">iLoveGitHub</a> ❤️</span>
         </div>
       </div>
     `;
@@ -110,8 +139,8 @@ class WebIdeExtension {
            target="_blank" 
            rel="noopener noreferrer"
            title="${item.name}">
-          <img src="${item.icon}" class="inverted-icon-clr tool-icon" alt="${item.name}" />
-          <span class="web-ide-item-title">Open in ${item.name}</span>
+          <img src="${item.icon}" class="tool-icon" alt="${item.name}" />
+          <span class="web-ide-item-title">${item.name}</span>
         </a>
       </li>
     `
