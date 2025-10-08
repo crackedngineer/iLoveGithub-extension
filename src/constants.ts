@@ -1,6 +1,4 @@
 export const BASE_URL = "https://ilovegithub.oderna.in";
-export const LOGO_URL =
-  "https://raw.githubusercontent.com/crackedngineer/ilovegithub/master/public/icons/favicon.png";
 
 // DOM IDs and Classes
 export const DOM_IDS = {
@@ -44,3 +42,5 @@ export const MESSAGE_TYPES = {
 
 // Environment constants
 export const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
+
+export const DEFAULT_BRANCH = "master";

@@ -1,4 +1,9 @@
-import { getRepoInfo } from "./helpers";
+import {
+  getBranchFromDOM,
+  getBranchFromUrl,
+  getRepoInfo,
+  isRepoPage,
+} from "./helpers";
 import { RepoInfo, Tool } from "./types";
 import { loadTools } from "./utils";
 
@@ -14,7 +19,20 @@ class WebIdeExtension {
   async init(): Promise<void> {
     try {
       this.hasPackageJson = this.checkPackageJson();
-      this.repoInfo = getRepoInfo();
+      // check if on a repo page
+      if (isRepoPage() === false) {
+        console.error("Not a repository page. Exiting.");
+        return;
+      }
+      const info = getRepoInfo();
+      if (!info) {
+        console.error("Failed to extract repository info. Exiting.");
+        return;
+      }
+      this.repoInfo = {
+        ...info,
+        branch: getBranchFromUrl() || getBranchFromDOM(),
+      };
 
       this.tools = await loadTools(this.repoInfo);
 
@@ -38,23 +56,6 @@ class WebIdeExtension {
     return true;
   }
 
-  // private async addStyles(): Promise<void> {
-  //   try {
-  //     // Read CSS file
-  //     const cssUrl = chrome.runtime.getURL("styles/content.css");
-  //     const response = await fetch(cssUrl);
-  //     const cssText = await response.text();
-
-  //     // Inject into page
-  //     const styleElement = document.createElement("style");
-  //     styleElement.id = "web-ide-styles";
-  //     styleElement.textContent = cssText;
-  //     document.head.appendChild(styleElement);
-  //   } catch (error) {
-  //     console.error("Failed to inject CSS:", error);
-  //   }
-  // }
-
   private addGitHubSelectMenu(index: number = 1): void {
     const selectors = [
       ".OverviewContent-module__Box_6--wV7Tw",
@@ -69,8 +70,6 @@ class WebIdeExtension {
 
     const filteredItems = this.tools.filter((item) => this.filterItems(item));
     if (filteredItems.length === 0) return;
-
-    // this.addStyles();
 
     const detailsElement = this.createDropdownElement(filteredItems);
 
@@ -94,12 +93,21 @@ class WebIdeExtension {
 
     detailsElement.innerHTML = `
       <summary role="button" type="button" class="btn text-center">
-        <span class="d-none d-xl-flex flex-items-center">
+        <span class="d-none d-xl-flex flex-items-center gap-[0.5rem]">
+          <img 
+            src="https://aa3d4bqalqflkq22.public.blob.vercel-storage.com/images/icons/symbol.png" 
+            alt="iLoveGithub Tools" 
+            class="web-ide-dropdown-icon" 
+          />
           Open Tools
           <span class="dropdown-caret ml-2"></span>
         </span>
         <span class="d-inline-block d-xl-none">
-          Tools
+          <img 
+            src="https://aa3d4bqalqflkq22.public.blob.vercel-storage.com/images/icons/symbol.png" 
+            alt="iLoveGithub Tools" 
+            class="web-ide-dropdown-icon" 
+          />
           <span class="dropdown-caret d-none d-sm-inline-block d-md-none d-lg-inline-block"></span>
         </span>
       </summary>
@@ -139,7 +147,10 @@ class WebIdeExtension {
            target="_blank" 
            rel="noopener noreferrer"
            title="${item.name}">
-          <img src="${item.icon}" class="tool-icon" alt="${item.name}" />
+          <img src="${
+            item?.icon ??
+            "https://aa3d4bqalqflkq22.public.blob.vercel-storage.com/brain.png"
+          }" class="tool-icon" alt="${item.name}" />
           <span class="web-ide-item-title">${item.name}</span>
         </a>
       </li>
